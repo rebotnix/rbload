@@ -4,11 +4,10 @@
 
 ## Overview
 
-The REBOTNIX RB-Load is a multi-parallel thread application designed for stress testing NVIDIA Orin SoCs (System on Chip). This tool allows you to fully load either all ARM CPU cores, all GPU cores, or both simultaneously under controlled conditions. It is especially useful for developers and engineers who need to assess the performance, stability, and thermal characteristics of NVIDIA SoCs, particularly in demanding environments.
+The REBOTNIX RB-Load is a multi-parallel thread application designed for stress testing NVIDIA Orin SoCs (System on Chip). This tool allows you to fully load either all ARM CPU cores, all GPU cores, or both simultaneously under controlled conditions. It is especially useful for developers and engineers who need to assess the performance, stability, and thermal characteristics, particularly in demanding environments.
 
 To download the binary, go to the release section.
 https://github.com/rebotnix/rbload/releases
-
 
 ## Features
 
