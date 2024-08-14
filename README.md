@@ -21,6 +21,15 @@ https://github.com/rebotnix/rbload/releases
 - **Compatibility:** Requires additional tools like PyTorch or similar frameworks to be installed for proper execution.
 
 ## Usage
+unpack the zip file from the asset release.
+
+Exmaple:
+unzip rbload.zip
+
+Set chmod 755 to rbload
+
+No installation is required.
+
 
 ### Release Information
 
