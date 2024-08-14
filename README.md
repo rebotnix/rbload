@@ -53,9 +53,4 @@ Parameters
 
 -o=<output_filename>: Specifies the name of the output file where temperature data will be logged.
 
-Advantages
-Efficient Testing: By providing the ability to stress both CPU and GPU cores, this tool ensures a thorough evaluation of NVIDIA SoCs.
-Compact Distribution: The use of rb-compress ensures that the application is extremely lightweight, with a static binary size of just 204 KB.
-Flexibility: Supports various stress test modes and configurations, making it adaptable to different testing needs.
-Official release in September 2024, where we will provide full support and further enhancements to this powerful testing tool.
-
+License: MIT
