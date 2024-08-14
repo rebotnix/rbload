@@ -18,7 +18,7 @@ https://github.com/rebotnix/rbload/releases
 - **Temperature Monitoring:** Real-time monitoring of GPU and CPU temperatures using `tegrastats`, giving you immediate feedback during the stress test.
 - **Logging:** Option to log temperature data at regular intervals, allowing for detailed analysis of system performance over time.
 - **Compact Static Binary:** The entire application is packaged into a static binary using `rb-compress`, reducing its size to just 204 KB.
-- **Compatibility:** Requires additional tools like PyTorch or similar frameworks to be installed for proper execution.
+- **Compatibility:** Requires NO additional tools like PyTorch or similar frameworks to be installed for proper execution.
 
 ## Usage
 unpack the zip file from the asset release.
