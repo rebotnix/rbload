@@ -1,0 +1,17 @@
+# Compiled binary
+rbload
+
+ Log files
+*.txt
+
+# CUDA compiled files
+*.ptx
+*.cubin
+
+# Object files
+*.o
+
+# IDE specific files
+.vscode/
+.idea/
+
