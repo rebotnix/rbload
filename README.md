@@ -154,3 +154,7 @@ The software is copyrighted and may only be used according to the license agreem
 
 ## Support
 For technical support and more information, please contact the software developer or visit our website.
+
+## License
+This project is licensed under the AGPL-3.0 License – see the [LICENSE](./LICENSE) file for details.
+
