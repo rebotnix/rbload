@@ -101,7 +101,7 @@ __global__ void gpuStressTest(float *data, int N) {
         float x = data[idx];
         // Perform intensive floating-point calculations
         for (int i = 0; i < 1000000; ++i) {
-            x = x * x - x + 2.0f;  // Arbitrary computation to stress GPU
+            x = x * x - x + 2.0f;  // Arbitrary computation to stress GPU, simple but works good
         }
         data[idx] = x;
     }
@@ -138,81 +138,112 @@ enum class TempUnit {
     Fahrenheit
 };
 
-/**
- * Monitors system temperatures using tegrastats utility
- * Continuously reads temperature data and updates shared variables
- * 
- * @param running Atomic flag controlling the monitoring loop
- * @param gpuTemp Reference to string storing current GPU temperature
- * @param cpuTemp Reference to string storing current CPU temperature
- * @param mtx Mutex for thread-safe temperature updates
- */
+// Add configurable logging interval (default 5s, minimum 1s)
+int loggingInterval = 5;
+
+struct ThermalZone {
+    std::string path;
+    std::string type;
+    int temp;
+};
+
+// Function to scan and categorize thermal zones
+std::vector<ThermalZone> scanThermalZones() {
+    std::vector<ThermalZone> zones;
+    
+    // Use popen to execute the shell command and read results
+    // We want to support any jetson modules, let scan all zones
+    // gpu-thermal,cv0-thermal,cv1-thermal,cv2-thermal,soc0-thermal,soc1-thermal,soc2-thermal,tj-thermal
+    const char* cmd = "ls -d /sys/class/thermal/thermal_zone*";
+    PipeRAII pipe(cmd);
+    
+    if (!pipe.isValid()) {
+        return zones;
+    }
+
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), pipe.get())) {
+        // Remove newline
+        std::string zonePath(buffer);
+        zonePath = zonePath.substr(0, zonePath.find_last_not_of("\n\r") + 1);
+        
+        // Read zone type
+        std::string typeFile = zonePath + "/type";
+        std::string type = readFileContent(typeFile);
+        if (type != "N/A") {
+            zones.push_back({zonePath, type, -1});
+        }
+    }
+    
+    return zones;
+}
+
+// Function to update temperatures for thermal zones
+void updateTemperatures(std::vector<ThermalZone>& zones) {
+    for (auto& zone : zones) {
+        std::string tempFile = zone.path + "/temp";
+        zone.temp = readTemperature(tempFile);
+    }
+}
+
+// Function to get temperature for a specific thermal type
+int getTypeTemperature(const std::vector<ThermalZone>& zones, const std::string& type) {
+    int max_temp = -1;
+    for (const auto& zone : zones) {
+        if (zone.type == type && zone.temp > max_temp) {
+            max_temp = zone.temp;
+        }
+    }
+    return max_temp;
+}
+
 void monitorTemperatures(std::atomic<bool>& running, std::string& gpuTemp, std::string& cpuTemp, 
                         std::mutex& mtx, TempUnit unit = TempUnit::Celsius) {
-    // Common GPU temperature paths on different Jetson models
-    const std::string gpu_temp_paths[] = {
-        "/sys/devices/gpu.0/temperature",
-        "/sys/class/thermal/thermal_zone2/temp",
-        "/sys/class/hwmon/hwmon0/temp1_input",
-        "/sys/class/hwmon/hwmon1/temp1_input",
-        "/sys/devices/virtual/thermal/thermal_zone2/temp"
-    };
-
-    const std::string cpu_temp_paths[] = {
-        "/sys/devices/virtual/thermal/thermal_zone0/temp",
-        "/sys/devices/virtual/thermal/thermal_zone1/temp",
-        "/sys/devices/virtual/thermal/thermal_zone2/temp",
-        "/sys/devices/virtual/thermal/thermal_zone3/temp",
-        "/sys/devices/virtual/thermal/thermal_zone4/temp",
-        "/sys/devices/virtual/thermal/thermal_zone5/temp"
-    };
-
-    // Find valid GPU temperature path
-    std::string valid_gpu_path;
-    for (const auto& path : gpu_temp_paths) {
-        std::ifstream test(path);
-        if (test.good()) {
-            valid_gpu_path = path;
-            break;
-        }
+    // Initial scan of thermal zones
+    std::vector<ThermalZone> thermalZones = scanThermalZones();
+    
+    if (thermalZones.empty()) {
+        std::cerr << "Warning: No thermal zones found!" << std::endl;
+        return;
     }
 
     while (running) {
-        // Read GPU temperature
-        int gpu_temp = valid_gpu_path.empty() ? -1 : readTemperature(valid_gpu_path);
-        
-        // Read CPU temperatures and get the maximum
-        int max_cpu_temp = -1;
-        for (const auto& path : cpu_temp_paths) {
-            int temp = readTemperature(path);
-            if (temp > max_cpu_temp && temp != -1) {  // Added check for -1
-                max_cpu_temp = temp;
-            }
-        }
+        // Update all temperatures
+        updateTemperatures(thermalZones);
+
+        // Get temperatures for CPU and GPU
+        int cpu_temp = getTypeTemperature(thermalZones, "cpu-thermal");
+        int gpu_temp = getTypeTemperature(thermalZones, "gpu-thermal");
 
         // Update temperatures with mutex protection
         {
             std::lock_guard<std::mutex> lock(mtx);
             
-            // Format temperature strings
-            std::string unit_symbol = (unit == TempUnit::Celsius) ? "°C" : "°F";
-            
-            if (gpu_temp != -1) {
-                float temp = unit == TempUnit::Celsius ? gpu_temp : celsiusToFahrenheit(gpu_temp);
-                gpuTemp = std::to_string(static_cast<int>(std::round(temp))) + unit_symbol;
-            } else {
-                gpuTemp = "N/A";
-            }
-            
-            if (max_cpu_temp != -1) {
-                float temp = unit == TempUnit::Celsius ? max_cpu_temp : celsiusToFahrenheit(max_cpu_temp);
-                cpuTemp = std::to_string(static_cast<int>(std::round(temp))) + unit_symbol;
+            // Format CPU temperature
+            if (cpu_temp != -1) {
+                float temp = (unit == TempUnit::Celsius) ? 
+                           static_cast<float>(cpu_temp) : 
+                           celsiusToFahrenheit(static_cast<float>(cpu_temp));
+                cpuTemp = std::to_string(static_cast<int>(temp)) + 
+                         ((unit == TempUnit::Celsius) ? "°C" : "°F");
             } else {
                 cpuTemp = "N/A";
             }
+            
+            // Format GPU temperature
+            if (gpu_temp != -1) {
+                float temp = (unit == TempUnit::Celsius) ? 
+                           static_cast<float>(gpu_temp) : 
+                           celsiusToFahrenheit(static_cast<float>(gpu_temp));
+                gpuTemp = std::to_string(static_cast<int>(temp)) + 
+                         ((unit == TempUnit::Celsius) ? "°C" : "°F");
+            } else {
+                gpuTemp = "N/A";
+            }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        // Sleep for the configured logging interval
+        std::this_thread::sleep_for(std::chrono::seconds(loggingInterval));
     }
 }
 
@@ -264,14 +295,16 @@ void printProgress(int duration, int mode, std::atomic<bool>& running, const std
  * Creates a log file with timestamp and records temperature data every 10 seconds
  * 
  * @param running Atomic flag controlling the logging loop
- * @param gpuTemp Current GPU temperature string
- * @param cpuTemp Current CPU temperature string
  * @param filename Name of the output log file
  * @param mode Current test mode for logging reference
  * @param mtx Mutex for thread-safe temperature access
  */
-void logTemperatures(std::atomic<bool>& running, const std::string& gpuTemp, const std::string& cpuTemp, 
-                    const std::string& filename, int mode, std::mutex& mtx, int interval_seconds) {
+void logTemperatures(std::atomic<bool>& running, const std::string& filename, 
+                    int mode, std::mutex& mtx, int interval_seconds,
+                    TempUnit unit = TempUnit::Celsius) {
+    // Initial scan of thermal zones
+    std::vector<ThermalZone> thermalZones = scanThermalZones();
+    
     std::ofstream logFile(filename);
     if (!logFile.is_open()) {
         std::cerr << "Failed to open log file" << std::endl;
@@ -280,36 +313,66 @@ void logTemperatures(std::atomic<bool>& running, const std::string& gpuTemp, con
 
     std::string modeDescription;
     switch (mode) {
-        case 0:
-            modeDescription = "CPU Stress Test";
-            break;
-        case 1:
-            modeDescription = "GPU Stress Test";
-            break;
-        case 2:
-            modeDescription = "GPU and CPU Stress Test";
-            break;
-        default:
-            modeDescription = "Unknown Mode";
-            break;
+        case 0: modeDescription = "CPU Stress Test"; break;
+        case 1: modeDescription = "GPU Stress Test"; break;
+        case 2: modeDescription = "GPU and CPU Stress Test"; break;
+        default: modeDescription = "Unknown Mode"; break;
     }
 
     auto now = std::chrono::system_clock::now();
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
     char buf[80];
     std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&now_c));
-    logFile << "Mode: " << modeDescription << " | Start time: " << buf << std::endl;
-    logFile << "Logging interval: " << interval_seconds << " seconds" << std::endl << std::endl;
+    
+    // Write header
+    logFile << "RB-Load Stress Test Log" << std::endl;
+    logFile << "======================" << std::endl;
+    logFile << "Mode: " << modeDescription << std::endl;
+    logFile << "Start Time: " << buf << std::endl;
+    logFile << "Logging Interval: " << interval_seconds << " seconds" << std::endl;
+    logFile << "Detected Thermal Zones:" << std::endl;
+    for (const auto& zone : thermalZones) {
+        logFile << "- " << zone.type << " (" << zone.path << ")" << std::endl;
+    }
+    logFile << "======================" << std::endl;
+    
+    // Create CSV header with all thermal zones
+    logFile << "Time";
+    for (const auto& zone : thermalZones) {
+        logFile << "," << zone.type;
+    }
+    logFile << std::endl;
 
     while (running) {
+        // Use the provided interval_seconds instead of a hardcoded value
         std::this_thread::sleep_for(std::chrono::seconds(interval_seconds));
         now = std::chrono::system_clock::now();
         now_c = std::chrono::system_clock::to_time_t(now);
         std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&now_c));
+        
+        // Update temperatures
+        updateTemperatures(thermalZones);
+        
         std::lock_guard<std::mutex> lock(mtx);
-        logFile << "Time: " << buf << " | GPU Temp: " << gpuTemp << " | CPU Temp: " << cpuTemp << std::endl;
-        logFile.flush(); // Ensure immediate writing to file
+        logFile << buf;
+        for (const auto& zone : thermalZones) {
+            if (zone.temp != -1) {
+                float temp = (unit == TempUnit::Celsius) ? 
+                           static_cast<float>(zone.temp) : 
+                           celsiusToFahrenheit(static_cast<float>(zone.temp));
+                logFile << "," << static_cast<int>(temp) << 
+                          ((unit == TempUnit::Celsius) ? "°C" : "°F");
+            } else {
+                logFile << ",N/A";
+            }
+        }
+        logFile << std::endl;
+        logFile.flush();
     }
+    
+    // Write footer
+    logFile << "======================" << std::endl;
+    logFile << "Test completed at: " << buf << std::endl;
     logFile.close();
 }
 
@@ -464,15 +527,65 @@ int main(int argc, char *argv[]) {
     }
 
     int mode = -1;
-    int duration = 60; // Default duration in seconds
-    bool stats = true; // Default to true
+    int duration = 60;  // Default duration: 60 seconds
+    bool enableStats = true;
+    std::string outputFile;  // Will be set to timestamp or user value
+    TempUnit tempUnit = TempUnit::Celsius;
+    int loggingInterval = 5;  // Default interval: 5 seconds
+    
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg.substr(0, 3) == "-m=") {
+            mode = std::stoi(arg.substr(3));
+        } else if (arg.substr(0, 3) == "-t=") {
+            duration = std::stoi(arg.substr(3));
+        } else if (arg.substr(0, 7) == "-stats=") {
+            enableStats = (arg.substr(7) == "true");
+        } else if (arg.substr(0, 3) == "-o=") {
+            outputFile = arg.substr(3);
+        } else if (arg.substr(0, 6) == "-unit=") {
+            tempUnit = (arg.substr(6) == "F") ? TempUnit::Fahrenheit : TempUnit::Celsius;
+        } else if (arg.substr(0, 10) == "-interval=") {
+            try {
+                int interval = std::stoi(arg.substr(10));
+                loggingInterval = std::max(1, interval);
+                std::cout << "Setting logging interval to " << loggingInterval << " seconds" << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Invalid interval value. Using default of 5 seconds." << std::endl;
+                loggingInterval = 5;
+            }
+        }
+    }
+
+    // Generate timestamp filename if no output file specified
+    if (outputFile.empty()) {
+        auto now = std::chrono::system_clock::now();
+        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+        outputFile = std::to_string(now_ms.count()) + ".txt";
+    }
+
+    // Print usage if invalid mode
+    if (mode < 0 || mode > 2) {
+        std::cout << "Usage: " << argv[0] << " -m=[mode] -t=[duration] -stats=[true/false] -o=[output_file] -unit=[C/F] -interval=[seconds]\n";
+        std::cout << "Modes:\n";
+        std::cout << "  0: CPU stress test only\n";
+        std::cout << "  1: GPU stress test only\n";
+        std::cout << "  2: Combined CPU and GPU stress test\n";
+        std::cout << "Parameters:\n";
+        std::cout << "  -m=[mode]      : Test mode (0=CPU, 1=GPU, 2=Both)\n";
+        std::cout << "  -t=[duration]  : Test duration in seconds (default: 60)\n";
+        std::cout << "  -stats=[bool]  : Enable/disable temperature logging (default: true)\n";
+        std::cout << "  -o=[filename]  : Output log file name (default: temperature_log.txt)\n";
+        std::cout << "  -unit=[C/F]    : Temperature unit (C=Celsius [default], F=Fahrenheit)\n";
+        std::cout << "  -interval=[sec]: Temperature logging interval in seconds (default: 5, min: 1)\n";
+        return 1;
+    }
+
     std::atomic<bool> running(true);
     std::string gpuTemp = "N/A";
     std::string cpuTemp = "N/A";
     std::mutex mtx;
-    std::string filename = std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + ".txt";
-    TempUnit tempUnit = TempUnit::Celsius; // Default to Celsius
-    int interval_seconds = 5; // Default interval of 5 seconds
 
     std::cout << "REBOTNIX RB-LOAD STRESS TOOL" << std::endl;
     std::cout << "WRITTEN BY GARY HILGEMANN FOR REBOTNIX, GERMANY" << std::endl;
@@ -480,84 +593,16 @@ int main(int argc, char *argv[]) {
     std::cout << "USE WITH OWN RISK." << std::endl;
     std::cout << std::endl;
 
-    std::map<std::string, std::string> args;
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg.find('-') == 0) {
-            size_t pos = arg.find('=');
-            if (pos != std::string::npos) {
-                std::string key = arg.substr(1, pos - 1);
-                std::string value = arg.substr(pos + 1);
-                args[key] = value;
-            }
-        }
-    }
-
-    if (args.find("m") != args.end()) {
-        std::string modeStr = args["m"];
-        if (isInteger(modeStr)) {
-            mode = std::stoi(modeStr);
-        } else {
-            std::cerr << "Invalid mode parameter, must be an integer." << std::endl;
-            return 1;
-        }
-    }
-
-    if (mode < 0 || mode > 2) {
-        std::cerr << "Invalid mode. Please specify -m=0 for CPU only, -m=1 for GPU only, or -m=2 for both CPU and GPU." << std::endl;
-        return 1;
-    }
-
-    if (args.find("t") != args.end()) {
-        std::string durationStr = args["t"];
-        if (isInteger(durationStr)) {
-            duration = std::stoi(durationStr);
-        } else {
-            std::cerr << "Invalid time parameter, must be an integer." << std::endl;
-            return 1;
-        }
-    }
-
-    if (args.find("stats") != args.end()) {
-        stats = (args["stats"] == "true");
-    }
-
-    if (args.find("o") != args.end()) {
-        filename = args["o"];
-    }
-
-    // Add temperature unit parsing
-    if (args.find("unit") != args.end()) {
-        std::string unit = args["unit"];
-        if (unit == "F" || unit == "f") {
-            tempUnit = TempUnit::Fahrenheit;
-        }
-    }
-
-    // Add interval parsing
-    if (args.find("interval") != args.end()) {
-        std::string intervalStr = args["interval"];
-        if (isInteger(intervalStr)) {
-            interval_seconds = std::max(1, std::stoi(intervalStr));
-        } else {
-            std::cerr << "Invalid interval parameter, must be an integer." << std::endl;
-            return 1;
-        }
-    } else {
-        // If duration is less than 5 seconds, set interval to 1 second
-        interval_seconds = (duration < 5) ? 1 : 5;
-    }
-
     std::cout << "Starting stress test with mode " << mode << " for " << duration << " seconds." << std::endl;
     std::cout << "Temperature unit: " << (tempUnit == TempUnit::Celsius ? "Celsius" : "Fahrenheit") << std::endl;
-    std::cout << "Logging interval: " << interval_seconds << " seconds" << std::endl;
+    std::cout << "Logging interval: " << loggingInterval << " seconds" << std::endl;
 
     std::thread infoThread(printProgress, duration, mode, std::ref(running), std::ref(gpuTemp), std::ref(cpuTemp), std::ref(mtx));
     std::thread tempThread(monitorTemperatures, std::ref(running), std::ref(gpuTemp), std::ref(cpuTemp), std::ref(mtx), tempUnit);
     std::thread logThread;
-    if (stats) {
-        logThread = std::thread(logTemperatures, std::ref(running), std::ref(gpuTemp), std::ref(cpuTemp), 
-                               filename, mode, std::ref(mtx), interval_seconds);
+    if (enableStats) {
+        logThread = std::thread(logTemperatures, std::ref(running), outputFile, 
+                               mode, std::ref(mtx), loggingInterval, tempUnit);
     }
 
     if (mode == 1 || mode == 2) {
@@ -594,7 +639,7 @@ int main(int argc, char *argv[]) {
     infoThread.join();
     running = false;
     tempThread.join();
-    if (stats && logThread.joinable()) {
+    if (enableStats && logThread.joinable()) {
         logThread.join();
     }
 

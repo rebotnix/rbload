@@ -1,109 +1,3 @@
-# RB-Load Stress Tool
-
-REBOTNIX RB-LOAD STRESS TOOLS for NVIDIA Jetson
-Written by Gary Hilgemann for REBOTNIX, Germany
-
-## Prerequisites
-
-- NVIDIA Jetson familiy
-- CUDA Toolkit installed
-- GCC/G++ compiler
-- Make build system
-
-## Features
-
-- Real-time temperature monitoring with selectable units (Celsius/Fahrenheit)
-- Configurable test duration
-- Temperature logging to file
-- CUDA-based GPU stress testing
-- Multi-threaded CPU stress testing
-- Comprehensive system temperature monitoring
-
-## Compilation Instructions
-
-1. First, make sure you have the correct CUDA toolkit installed:
-```bash
-nvcc --version
-```
-
-2. Adjust the Makefile according to your Jetson model:
-- Jetson Nano: ARCH = -arch=sm_53
-- Jetson Xavier NX: ARCH = -arch=sm_72
-- Jetson AGX Xavier: ARCH = -arch=sm_72
-- Jetson TX2: ARCH = -arch=sm_62
-
-3. Compile the program:
-```bash
-make
-```
-
-4. The compilation will create an executable named 'rbload'
-
-## Usage
-
-Run the stress test tool with the following options:
-```bash
-./rbload -m=[mode] -t=[duration] -stats=[true/false] -o=[output_file] -unit=[C/F]
-```
-
-Parameters:
-- `-m`: Test mode (0=CPU, 1=GPU, 2=Both)
-- `-t`: Test duration in seconds
-- `-stats`: Enable/disable temperature logging
-- `-o`: Output log file name
-- `-unit`: Temperature unit (C=Celsius [default], F=Fahrenheit)
-
-Examples:
-```bash
-# Run with default Celsius temperature display
-./rbload -m=2 -t=60 -stats=true -o=stress_test_log.txt
-
-# Run with Fahrenheit temperature display
-./rbload -m=2 -t=60 -stats=true -o=stress_test_log.txt -unit=F
-```
-
-## Test Modes
-
-1. **CPU Only (mode 0)**
-   - Stresses all CPU cores with intensive calculations
-   - Monitors CPU temperature
-
-2. **GPU Only (mode 1)**
-   - Executes CUDA kernels to stress the GPU
-   - Monitors GPU temperature
-
-3. **Combined (mode 2)**
-   - Stresses both CPU and GPU simultaneously
-   - Monitors both temperatures
-
-## Temperature Monitoring
-
-- Real-time display of both CPU and GPU temperatures
-- Choose between Celsius (default) and Fahrenheit
-- Temperature logging to file when stats=true
-- Automatic detection of temperature sensors
-
-## Cleaning
-
-To clean the build:
-```bash
-make clean
-```
-
-## Troubleshooting
-
-1. If you get compilation errors about CUDA architecture, verify your Jetson model and adjust the ARCH variable in the Makefile accordingly.
-
-2. Make sure you have proper permissions to read the temperature sensors:
-```bash
-sudo chmod a+r /sys/class/thermal/thermal_zone*/temp
-```
-
-3. Ensure you have sufficient permissions to run the program:
-```bash
-chmod +x rbload
-```
-
 # REBOTNIX RB-LOAD Stresstest Software Documentation
 
 ## Overview
@@ -115,7 +9,7 @@ RB-LOAD is a software tool designed to stress-test high-performance computing sy
 2. **CPU Stress Test**
    - Stresses all CPU cores with complex calculations to examine CPU performance and thermal characteristics.
 3. **Combined GPU and CPU Stress Test**
-   - Integrates both tests to provide a comprehensive assessment of the system's performance under simulated peak load conditions.
+   - Integrates both tests to provide a comprehensive assessment of the system’s performance under simulated peak load conditions.
 4. **Temperature Monitoring**
    - Monitors and logs GPU and CPU temperatures in real-time during testing.
 5. **Logging**
@@ -155,6 +49,4 @@ The software is copyrighted and may only be used according to the license agreem
 ## Support
 For technical support and more information, please contact the software developer or visit our website.
 
-## License
-This project is licensed under the AGPL-3.0 License – see the [LICENSE](./LICENSE) file for details.
 
