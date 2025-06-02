@@ -3,7 +3,7 @@
 # REBOTNIX RB-LOAD Stresstest Documentation
 
 ## Overview
-RB-LOAD is a software tool designed to stress-test high-performance computing systems, specifically those equipped with NVIDIA Tegra-based processors. It executes demanding computations on the GPU and/or CPU to assess the performance and stability under extreme workload conditions. The program also provides continuous monitoring of GPU and CPU temperatures, which is crucial for identifying thermal issues and potential overheating scenarios.
+RB-LOAD is a software tool designed to stress-test high-performance computing systems, specifically those equipped with NVIDIA Jetson. It executes demanding computations on the GPU and/or CPU to assess the performance and stability under extreme workload conditions. The program also provides continuous monitoring of GPU and CPU temperatures, which is crucial for identifying thermal issues and potential overheating scenarios.
 
 ## Features
 1. **GPU Stress Test**
