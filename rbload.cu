@@ -3,7 +3,7 @@ REBOTNIX RB-LOAD STRESS TOOLS
 WRITTEN BY GARY HILGEMANN FOR REBOTNIX, GERMANY
 ALL RIGHTS RESERVED 2024-now.
 USE AT YOUR OWN RISK.
-VERSION 0.9.4
+VERSION 0.9.5
 
 Description:
 This tool is designed to stress test both CPU and GPU components of a NVIDIA Jetson.
@@ -52,6 +52,7 @@ This software is provided "as is", without warranty of any kind, express or impl
 #include <mutex>
 #include <map>
 #include <memory>
+#include <algorithm>  // Für std::transform
 
 // ANSI color codes for terminal output formatting
 #define RESET "\033[0m"    // Reset text formatting
@@ -154,7 +155,13 @@ std::vector<ThermalZone> scanThermalZones() {
     
     // Use popen to execute the shell command and read results
     // We want to support any jetson modules, let scan all zones
-    // gpu-thermal,cv0-thermal,cv1-thermal,cv2-thermal,soc0-thermal,soc1-thermal,soc2-thermal,tj-thermal
+    // Known thermal zones:
+    // CPU: cpu-thermal, CPU-therm
+    // GPU: gpu-thermal, GPU-therm
+    // CV: cv0-thermal, cv1-thermal, cv2-thermal, CV0-therm, CV1-therm, CV2-therm
+    // SOC: soc0-thermal, soc1-thermal, soc2-thermal, SOC0-therm, SOC1-therm, SOC2-therm
+    // TJ: tj-thermal, tj-therm
+    // AUX: aux0-thermal, AUX0-therm, aux1-thermal, AUX1-therm
     const char* cmd = "ls -d /sys/class/thermal/thermal_zone*";
     PipeRAII pipe(cmd);
     
@@ -171,7 +178,37 @@ std::vector<ThermalZone> scanThermalZones() {
         // Read zone type
         std::string typeFile = zonePath + "/type";
         std::string type = readFileContent(typeFile);
+        
         if (type != "N/A") {
+            // Convert type to lowercase for case-insensitive comparison
+            std::string lowerType = type;
+            std::transform(lowerType.begin(), lowerType.end(), lowerType.begin(), ::tolower);
+            
+            // Normalize thermal zone names
+            if (lowerType.find("cpu") != std::string::npos) {
+                type = "cpu-thermal";
+            } else if (lowerType.find("gpu") != std::string::npos) {
+                type = "gpu-thermal";
+            } else if (lowerType.find("cv0") != std::string::npos) {
+                type = "cv0-thermal";
+            } else if (lowerType.find("cv1") != std::string::npos) {
+                type = "cv1-thermal";
+            } else if (lowerType.find("cv2") != std::string::npos) {
+                type = "cv2-thermal";
+            } else if (lowerType.find("soc0") != std::string::npos) {
+                type = "soc0-thermal";
+            } else if (lowerType.find("soc1") != std::string::npos) {
+                type = "soc1-thermal";
+            } else if (lowerType.find("soc2") != std::string::npos) {
+                type = "soc2-thermal";
+            } else if (lowerType.find("tj") != std::string::npos) {
+                type = "tj-thermal";
+            } else if (lowerType.find("aux0") != std::string::npos) {
+                type = "aux0-thermal";
+            } else if (lowerType.find("aux1") != std::string::npos) {
+                type = "aux1-thermal";
+            }
+            
             zones.push_back({zonePath, type, -1});
         }
     }
