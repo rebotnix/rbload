@@ -34,6 +34,8 @@ RB-LOAD is a software tool designed to stress-test high-performance computing sy
    - The source code must be compiled with a modern C++ compiler that supports C++17.
 3. **Install tegrastats**
    - This tool should be installed on your system as it is used for monitoring temperature data.
+   - make  (To compile the binary, make sure that you set the right architecture of the Jetson in the Makefile)
+   - make clean If you want to clean and rebuild with make again
 
 ## Usage
 To start the program, execute it with optional command line arguments to specify the mode and duration of the test. 
@@ -54,7 +56,9 @@ rbload -m=2 -t=60 -o=stress_test_log.txt -unit=C
 Jetson Orin NX 16 GB with Jetpack 6.1.1 [YES]
 Jetson AGX ORIN 64GB with Jetpack 5.1.1 [YES]
 
-More to come. Please report when you have find an valid test of this application.
+More Jetson test to come. 
+
+Please report when you have find an valid test of this application.
 
 ## Safety Precautions
 - **Monitoring:** Continuously monitor temperature and system performance to prevent damage due to overheating.
