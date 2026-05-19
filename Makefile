@@ -1,17 +1,17 @@
 # Compiler settings
-NVCC = nvcc
-CXX = g++
+NVCC ?= nvcc
+CXX ?= g++
 
 # Warning flags
-COMMON_WARNINGS = -Wall -Wextra -Werror
-CUDA_WARNINGS = -Xcompiler "-Wall -Wextra" -Xcudafe --display_error_number
+COMMON_WARNINGS ?= -Wall -Wextra -Werror
+CUDA_WARNINGS ?= -Xcompiler "-Wall -Wextra" -Xcudafe --display_error_number
 
 # Compiler flags
-NVCCFLAGS = -O2 $(CUDA_WARNINGS) --ptxas-options=-v
-CXXFLAGS = -O2 -std=c++11 $(COMMON_WARNINGS)
+NVCCFLAGS ?= -O2 $(CUDA_WARNINGS) --ptxas-options=-v
+CXXFLAGS ?= -O2 -std=c++11 $(COMMON_WARNINGS)
 
 # Linker flags
-LDFLAGS = -lpthread
+LDFLAGS ?= -lpthread
 
 # CUDA architecture settings for Jetson
 # Jetson Nano: 53
@@ -19,7 +19,7 @@ LDFLAGS = -lpthread
 # Jetson AGX Xavier: 72
 # Jetson TX2: 62
 # Please adjust according to your Jetson model
-ARCH = -arch=sm_53
+ARCH ?= -arch=sm_53
 
 # Source files
 SOURCES = rbload.cu
