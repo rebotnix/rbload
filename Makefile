@@ -18,6 +18,7 @@ LDFLAGS = -lpthread
 # Jetson Xavier NX: 72
 # Jetson AGX Xavier: 72
 # Jetson TX2: 62
+# Jetson AGX Orin: 87
 # Please adjust according to your Jetson model
 ARCH = -arch=sm_53
 
